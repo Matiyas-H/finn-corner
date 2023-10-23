@@ -274,3 +274,6 @@ dump.rdb
 finnish_corner/media/
 
 .pytest_cache/
+
+
+.dj_env
