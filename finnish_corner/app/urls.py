@@ -12,5 +12,5 @@ urlpatterns = [
     path("get_audio/", views.receive_audio, name="receive_audio"),
     path("speech_chat/", views.speech_chat, name="speech_chat"),
     path("clear_history/", views.clear_history, name="clear_history"),
-    path('scenario_text_chat/', views.scenario_text_chat, name='scenario_text_chat'),
+    # path('scenario_text_chat/', views.scenario_text_chat, name='scenario_text_chat'),
 ]
