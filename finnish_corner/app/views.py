@@ -11,10 +11,10 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from dotenv import load_dotenv
-
 from . import chatgpt_proxy, gtts_proxy
-from .models import Audio, Chat
+from .models import Audio, Chat, Scenario
 
+from django.views.decorators.csrf import csrf_exempt
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -24,20 +24,96 @@ def index(request):
     return render(request, "app/index.html")
 
 
+def select_scenario(request):
+    scenarios = Scenario.objects.all()
+    return render(request, 'app/scenario.html', {'scenarios': scenarios})
+
+
+
+@csrf_exempt  # Ensure that your CSRF protection is handled properly
+def scenario_text_chat(request):
+    if request.method == 'POST':
+        data = json.loads(request.body.decode('utf-8'))
+        user_message = data.get("user_message")
+        user_id = data.get("user_id")
+        chat_id = data.get("chat_id")
+        scenario_id = data.get("scenario_id")
+        gpt_version = data.get("gpt_version")
+
+        # Load the selected scenario
+        try:
+            selected_scenario = Scenario.objects.get(id=scenario_id)
+        except Scenario.DoesNotExist:
+            return JsonResponse({"error": "Selected scenario does not exist."}, status=400)
+
+        if not chat_id:
+            chat_id = str(abs(hash(user_message)))
+
+        # Ensure chat record exists at the start
+        chat_record, created = Chat.objects.get_or_create(user_id=user_id, chat_id=chat_id)
+        if created:
+            chat_record.chat_history = json.dumps([])  # or some default value
+            chat_record.scenario = selected_scenario
+            chat_record.save()
+
+        # You might want to pass the scenario’s starter_prompt to your chat proxy here
+        ai_message, chat_history = chatgpt_proxy.text_chat(user_message, user_id, chat_id, gpt_version, selected_scenario.starter_prompt)
+        audio_id = gtts_proxy.convert_to_audio(user_id, chat_id, ai_message, "en")
+
+        return JsonResponse(
+            {
+                "ai_message": ai_message,
+                "chat_history": chat_history,
+                "audio_id": audio_id,
+                "chat_id": chat_id,
+            }
+        )
+
+    else:
+        return JsonResponse({"error": "Invalid request method."}, status=405)
+
+
+
+
+# @require_POST
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from .models import Chat, Scenario  # Ensure you have the necessary imports
+
 @require_POST
 def text_chat(request):
     user_message = request.POST["user_message"]
     user_id = request.POST["user_id"]
     chat_id = request.POST["chat_id"]
+    scenario_id = request.POST.get("scenario_id")  # Get the scenario_id from the POST request
+    print(scenario_id)
     if not chat_id:
         chat_id = str(abs(hash(user_message)))
+    
     gpt_version = request.POST["gpt_version"]
 
     # Ensure chat record exists at the start
     chat_record, created = Chat.objects.get_or_create(user_id=user_id, chat_id=chat_id)
+    
     if created:
-        chat_record.chat_history = json.dumps([])  # or some default value
-        chat_record.save()
+        chat_record.chat_history = json.dumps([])  
+        if scenario_id:  # Check if a scenario_id exists
+            try:
+                scenario = Scenario.objects.get(id=scenario_id)
+                starter_message = {"role": "system", "content": scenario.starter_prompt}
+                
+                if created:
+                    chat_record.chat_history = json.dumps([starter_message])
+                else:
+                    chat_history = json.loads(chat_record.chat_history)
+                    chat_history.append(starter_message)
+                    chat_record.chat_history = json.dumps(chat_history)
+                
+                chat_record.save()
+                
+            except Scenario.DoesNotExist:
+                return JsonResponse({"error": "Invalid scenario ID."}, status=400)
+
 
     ai_message, chat_history = chatgpt_proxy.text_chat(user_message, user_id, chat_id, gpt_version)
     audio_id = gtts_proxy.convert_to_audio(user_id, chat_id, ai_message, "en")
@@ -52,7 +128,7 @@ def text_chat(request):
     )
 
 
-from django.views.decorators.csrf import csrf_exempt
+
 
 
 @csrf_exempt

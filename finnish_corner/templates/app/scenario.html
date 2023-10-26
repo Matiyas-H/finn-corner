@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+  <h1>Select a Scenario</h1>
+  
+  <select id="scenarioDropdown">
+      <option value="" disabled selected>Select a scenario</option>
+      {% for scenario in scenarios %}
+          <option value="{{ scenario.id }}">{{ scenario.title }}</option>
+      {% endfor %}
+  </select> 
+
+  <button id="startChatButton">Start Chat</button>
+  
+  <script src="{% static '/js/scenario.js' %}"></script>
+{% endblock %}
+
