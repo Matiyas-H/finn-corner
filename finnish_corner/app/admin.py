@@ -4,4 +4,4 @@ from .models import Chat,Audio,Scenario
 
 
 
-admin.site.register([Scenario, Chat, Audio])
+admin.site.register([Scenario, Chat, Audio,])

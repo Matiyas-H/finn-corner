@@ -142,7 +142,13 @@ document.addEventListener("DOMContentLoaded", function () {
         formData.append('audio', audioBlob, 'audio.wav');
         formData.append('chat_id', chatId);
         formData.append('gpt_version', document.getElementById('gptVersion').value);
-
+    
+        // Adding scenario_id to the FormData
+        const scenarioId = getParameterByName('scenario_id');
+        if (scenarioId) {
+            formData.append('scenario_id', scenarioId);
+        }
+    
         fetch('/app/speech_chat/', {
             method: 'POST',
             body: formData
@@ -157,6 +163,7 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error('Error uploading audio:', error);
         });
     }
+    
 
     function playAudio(audioBlob) {
         const audioUrl = URL.createObjectURL(audioBlob);

@@ -3,7 +3,6 @@ import json
 import os.path
 import time
 from pathlib import Path
-
 import openai
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
@@ -13,7 +12,6 @@ from django.views.decorators.http import require_POST
 from dotenv import load_dotenv
 from . import chatgpt_proxy, gtts_proxy
 from .models import Audio, Chat, Scenario
-
 from django.views.decorators.csrf import csrf_exempt
 load_dotenv()
 
@@ -66,7 +64,7 @@ def text_chat(request):
 
 
     ai_message, chat_history = chatgpt_proxy.text_chat(user_message, user_id, chat_id, gpt_version)
-    audio_id = gtts_proxy.convert_to_audio(user_id, chat_id, ai_message, "en")
+    audio_id = gtts_proxy.convert_to_audio(user_id, chat_id, ai_message, "fi")
 
     return JsonResponse(
         {
@@ -76,10 +74,6 @@ def text_chat(request):
             "chat_id": chat_id,
         }
     )
-
-
-
-
 
 @csrf_exempt
 @require_POST
@@ -133,22 +127,31 @@ def speech_chat(request):
         chat_record, created = Chat.objects.get_or_create(user_id=user_id, chat_id=chat_id)
 
         # Inject the scenario starter message if a scenario is selected and the chat is newly created
-        if created and scenario_id:
+        if created:
+            chat_record.chat_history = json.dumps([])
+        
+        if scenario_id:  # Check if a scenario_id exists
             try:
                 scenario = Scenario.objects.get(id=scenario_id)
                 starter_message = {"role": "system", "content": scenario.starter_prompt}
-                chat_history = json.loads(chat_record.chat_history) if chat_record.chat_history else []
-                chat_history.append(starter_message)
-                chat_record.chat_history = json.dumps(chat_history)
+                
+                if created:
+                    chat_record.chat_history = json.dumps([starter_message])
+                else:
+                    chat_history = json.loads(chat_record.chat_history)
+                    chat_history.append(starter_message)
+                    chat_record.chat_history = json.dumps(chat_history)
+                
                 chat_record.save()
+                
             except Scenario.DoesNotExist:
                 return JsonResponse({"error": "Invalid scenario ID."}, status=400)
-            
+        
         # Request chat response
         ai_message, chat_history = chatgpt_proxy.text_chat(chat_text, user_id, chat_id, gpt_version)
 
         # Convert the AI's response to audio
-        audio_id = gtts_proxy.convert_to_audio(user_id, chat_id, ai_message, "en")
+        audio_id = gtts_proxy.convert_to_audio(user_id, chat_id, ai_message, "fi")
 
         return JsonResponse(
             {
